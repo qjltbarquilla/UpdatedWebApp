@@ -9,7 +9,7 @@ import Contact from "./pages/Contact";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import Transcript from "./pages/Transcript";
+import Transcript from "./pages/Transcript.tsx";
 import PHQ9 from "./pages/PHQ9";
 import EmotionalAnalysis from "./pages/EmotionalAnalysis";
 import ReportSummary from "./pages/ReportSummary";
@@ -20,8 +20,15 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
+  <Toaster />
+  <Sonner
+
+    toastOptions={{
+      classNames: {
+        toast: "border-primary",            // 👈 adds primary border to all toasts
+      }
+    }}
+  />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Welcome />} />
@@ -31,6 +38,7 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/transcript/:patientId" element={<Transcript />} />
+          // App.tsx
           <Route path="/phq9/:patientId" element={<PHQ9 />} />
           <Route path="/emotional-analysis/:patientId" element={<EmotionalAnalysis />} />
           <Route path="/report-summary/:patientId" element={<ReportSummary />} />

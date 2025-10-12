@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Alef:wght@400;700&family=Amatica+SC:wght@400;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,7 +9,10 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 165 35% 95%;
+    --primary: 164 53% 19%;
+    --primary-foreground: 55 79% 94%;
+
+    --dashboard-background: 44 83% 95%;
     --foreground: 170 45% 15%;
 
     --card: 0 0% 100%;
@@ -17,13 +21,10 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 170 45% 15%;
 
-    --primary: 170 45% 45%;
-    --primary-foreground: 0 0% 100%;
-
     --secondary: 15 80% 70%;
     --secondary-foreground: 170 45% 15%;
 
-    --muted: 165 25% 85%;
+    --muted: 174 41% 41%;
     --muted-foreground: 170 25% 40%;
 
     --accent: 340 70% 75%;
@@ -38,7 +39,7 @@ All colors MUST be HSL.
 
     --radius: 1rem;
 
-    --sidebar-background: 170 45% 45%;
+    --sidebar-background: 169 31% 67%;
     --sidebar-foreground: 0 0% 100%;
     --sidebar-primary: 170 50% 35%;
     --sidebar-primary-foreground: 0 0% 100%;
@@ -47,49 +48,9 @@ All colors MUST be HSL.
     --sidebar-border: 170 35% 40%;
     --sidebar-ring: 170 45% 65%;
 
-    /* Custom tokens */
     --hero-gradient: linear-gradient(135deg, hsl(165 35% 95%), hsl(180 40% 92%));
     --card-soft: 165 30% 92%;
     --overlay: 170 25% 85% / 0.5;
-  }
-
-  .dark {
-    --background: 170 45% 10%;
-    --foreground: 165 35% 95%;
-
-    --card: 170 40% 15%;
-    --card-foreground: 165 35% 95%;
-
-    --popover: 170 40% 15%;
-    --popover-foreground: 165 35% 95%;
-
-    --primary: 170 45% 55%;
-    --primary-foreground: 170 45% 10%;
-
-    --secondary: 15 70% 60%;
-    --secondary-foreground: 0 0% 100%;
-
-    --muted: 170 35% 20%;
-    --muted-foreground: 165 25% 65%;
-
-    --accent: 340 60% 65%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 62.8% 50%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 170 35% 25%;
-    --input: 170 35% 20%;
-    --ring: 170 45% 55%;
-
-    --sidebar-background: 170 50% 20%;
-    --sidebar-foreground: 165 35% 95%;
-    --sidebar-primary: 170 55% 30%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 170 45% 35%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 170 40% 25%;
-    --sidebar-ring: 170 45% 65%;
   }
 }
 
@@ -101,4 +62,26 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground;
   }
+}
+
+.custom-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+  background: transparent; 
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--primary) / 0.4); 
+  border-radius: 8px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--primary)); 
+}
+
+.custom-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--primary) / 0.4) transparent;
 }

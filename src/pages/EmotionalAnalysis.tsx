@@ -1,3 +1,6 @@
+// emotional.tsx
+
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { Card } from "@/components/ui/card";
@@ -17,6 +20,27 @@ const emotionalData = [
 const EmotionalAnalysis = () => {
   const { patientId } = useParams();
 
+  // ✨ same header state/behavior as Dashboard
+  const [searchQuery, setSearchQuery] = useState("");
+  const [username, setUsername] = useState("");
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showUserInfo, setShowUserInfo] = useState(false);
+
+  useEffect(() => {
+    const storedUsername = localStorage.getItem("username");
+    if (storedUsername) setUsername(storedUsername);
+  }, []);
+
+  const handleNotificationClick = () => {
+    setShowNotifications(true);
+    setTimeout(() => setShowNotifications(false), 2000);
+  };
+
+  const handleUserIconClick = () => {
+    setShowUserInfo(true);
+    setTimeout(() => setShowUserInfo(false), 2000);
+  };
+
   return (
     <div className="flex min-h-screen w-full">
       <DashboardSidebar
@@ -25,22 +49,58 @@ const EmotionalAnalysis = () => {
 
       <main className="flex-1 bg-background">
         <div className="p-8">
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex-1 max-w-md">
+          {/* ===== Header (copied to match Dashboard) ===== */}
+          <div className="flex items-center gap-3 mb-8">
+            <div className="flex-1">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input placeholder="Search" className="pl-10" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/50" />
+                <Input
+                  placeholder="Search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 h-10 text-primary/50 rounded-full bg-sidebar/20"
+                />
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <Bell className="h-5 w-5" />
+
+            <div className="flex items-center gap-3">
+              <Button
+                className="p-2 bg-transparent text-primary hover:bg-primary hover:text-primary-foreground"
+                onClick={handleNotificationClick}
+              >
+                <Bell className="h-6 w-6" />
               </Button>
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <User className="h-5 w-5" />
-              </Button>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  className="p-2 bg-transparent text-primary hover:bg-primary hover:text-primary-foreground"
+                  onClick={handleUserIconClick}
+                >
+                  <User className="h-6 w-6" />
+                </Button>
+                <span className="text-primary font-regular">{username}</span>
+              </div>
             </div>
           </div>
+
+          {/* Notifications popover (with border) */}
+          {showNotifications && (
+            <div className="absolute top-14 left-0 right-0 border border-primary bg-transparent text-primary p-2 rounded-md shadow-md max-w-sm mx-auto">
+              <p className="font-bold text-sm">You have 3 new notifications</p>
+            </div>
+          )}
+
+          {/* User info popover (with border) */}
+          {showUserInfo && (
+            <div className="absolute top-14 left-0 right-0 border border-primary bg-transparent text-primary p-3 rounded-md shadow-md max-w-sm mx-auto">
+              <div className="flex items-center gap-4">
+                <User className="h-8 w-8 text-primary" />
+                <span className="font-bold">{username}</span>
+              </div>
+              <p className="text-sm">Welcome to your dashboard!</p>
+            </div>
+          )}
+          {/* ===== End header ===== */}
 
           <div className="grid lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-6">
@@ -92,21 +152,15 @@ const EmotionalAnalysis = () => {
                 <ul className="space-y-3 text-sm">
                   <li className="flex items-start gap-2">
                     <span className="w-2 h-2 rounded-full bg-primary mt-2"></span>
-                    <span>
-                      Predominant positive affect during initial conversation
-                    </span>
+                    <span>Predominant positive affect during initial conversation</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="w-2 h-2 rounded-full bg-accent mt-2"></span>
-                    <span>
-                      Increased sadness indicators when discussing school topics
-                    </span>
+                    <span>Increased sadness indicators when discussing school topics</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="w-2 h-2 rounded-full bg-secondary mt-2"></span>
-                    <span>
-                      Neutral expressions maintained during most interactions
-                    </span>
+                    <span>Neutral expressions maintained during most interactions</span>
                   </li>
                 </ul>
               </Card>

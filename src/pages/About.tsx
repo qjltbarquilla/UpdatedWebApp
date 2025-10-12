@@ -1,7 +1,9 @@
+//About Page
+
 import { useState } from "react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/ui/card";
-import heroBackground from "@/assets/hero-background.jpg";
+import BackgroundImage from "@/assets/BackgroundImage.jpg";
 import featureAI from "@/assets/feature-ai.jpg";
 import featureEmotion from "@/assets/feature-emotion.jpg";
 import featureVoice from "@/assets/feature-voice.jpg";
@@ -44,28 +46,32 @@ const About = () => {
   return (
     <div className="min-h-screen relative overflow-hidden">
       <div
-        className="absolute inset-0 bg-cover bg-center opacity-50"
-        style={{ backgroundImage: `url(${heroBackground})` }}
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: `url(${BackgroundImage})` }}
       />
 
       <div className="relative z-10">
         <Header />
-
-        <main className="container mx-auto px-6 pt-32 pb-16">
+        <main className="container mx-auto px-6 pt-32 pb-16 text-center">
           <h1
-            className="text-5xl md:text-6xl font-bold mb-12 text-center text-primary"
-            style={{ fontFamily: "cursive" }}
+            className="md:text-7xl font-normal text-primary"
+            style={{ fontFamily: "Alef, sans-serif", 
+                     fontSize: "40px" }}
           >
             What is
-            <br />
+          </h1>
+            <h1
+            className="md:text-8xl font-bold mb-12 text-primary tracking-tight"
+            style={{ fontFamily: '"Amatica SC", cursive', fontSize: "128px" }}
+          >
             SNUGGLEMIND?
           </h1>
-
+          
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
             {features.map((feature) => (
               <Card
                 key={feature.id}
-                className="cursor-pointer hover:scale-105 transition-all duration-300 overflow-hidden bg-muted/60 backdrop-blur-sm border-2 hover:border-primary"
+                className="cursor-pointer hover:scale-105 transition-colors overflow-hidden bg-muted/60 backdrop-blur-sm border-2 hover:border-primary"
                 onClick={() =>
                   setSelectedFeature(
                     selectedFeature === feature.id ? null : feature.id
@@ -84,24 +90,17 @@ const About = () => {
           </div>
 
           {selectedFeature && (
-            <Card className="p-8 bg-card/90 backdrop-blur-sm max-w-3xl mx-auto">
+            <div className="p-1 max-w-3xl mx-auto">
               <h2 className="text-2xl font-bold mb-4 text-primary">
                 {features.find((f) => f.id === selectedFeature)?.title}
               </h2>
-              <p className="text-lg text-muted-foreground">
+              <p className="text-lg font-normal text-primary"
+              style={{ fontFamily: "Alef, sans-serif", 
+                     fontSize: "20px" }}>
                 {features.find((f) => f.id === selectedFeature)?.description}
               </p>
-            </Card>
+            </div>
           )}
-
-          <div className="mt-12 max-w-3xl mx-auto text-center">
-            <p className="text-lg text-foreground/80 leading-relaxed">
-              This project integrates Small-Language Models, macroexpression analysis, 
-              and machine learning to support preliminary screening of depression in children 
-              aged 10–14. The system provides structured insights that contribute to broader 
-              psychological evaluation by mental health professionals and caregivers.
-            </p>
-          </div>
         </main>
       </div>
     </div>

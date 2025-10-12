@@ -1,3 +1,5 @@
+//Register Page
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
@@ -5,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
-import heroBackground from "@/assets/hero-background.jpg";
+import BackgroundImage from "@/assets/BackgroundImage.jpg";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -15,34 +17,60 @@ const Register = () => {
     confirmPassword: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (formData.password !== formData.confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
+  const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  if (formData.password !== formData.confirmPassword) {
+    toast.error("Passwords do not match");
+    return;
+  }
+
+  try {
+    // ✅ Send POST request to backend
+    const response = await fetch("http://localhost:5000/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: formData.username,
+        password: formData.password,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      toast.success("Account created successfully!");
+      setFormData({ username: "", password: "", confirmPassword: "" });
+      navigate("/login");
+    } else {
+      toast.error(data.message || "Failed to register user.");
     }
-    toast.success("Account created successfully!");
-    navigate("/dashboard");
-  };
+  } catch (error) {
+    console.error("❌ Error registering user:", error);
+    toast.error("Something went wrong. Please try again later.");
+  }
+};
+
 
   return (
-    <div className="min-h-screen relative overflow-hidden flex items-center justify-center">
+    <div className="min-h-screen relative overflow-hidden">
       <div
-        className="absolute inset-0 bg-cover bg-center opacity-50"
-        style={{ backgroundImage: `url(${heroBackground})` }}
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: `url(${BackgroundImage})` }}
       />
+      <Header />
 
-      <div className="relative z-10">
-        <Header />
-      </div>
-
-      <Card className="relative z-10 w-full max-w-md mx-4 p-8 bg-muted/90 backdrop-blur-sm">
-        <h1 className="text-3xl font-bold text-center mb-2 text-foreground">
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="relative z-10 w-full max-w-md mx-4 p-8 bg-muted/20">
+        <h1 className="text-3xl font-bold text-center mb-2 text-primary"
+        style={{fontFamily: "Alef, sans-serif"}}>
           SIGN UP
         </h1>
-        <p className="text-center text-muted-foreground mb-6">
+        <p className="text-center font-normal text-primary mb-6"
+        style={{fontFamily: "Alef, sans-serif"}}>
           Already have an account?{" "}
-          <Link to="/login" className="text-primary hover:underline">
+          <Link to="/login" className="font-normal text-primary underline hover:font-bold hover:underline"
+                            style={{fontFamily: "Alef, sans-serif"}}>
             Login
           </Link>
         </p>
@@ -55,7 +83,9 @@ const Register = () => {
               setFormData({ ...formData, username: e.target.value })
             }
             required
-            className="bg-background/50"
+            className="border-0 border-b border-primary bg-transparent rounded-none"
+            style={{ fontFamily: "Alef, sans-serif"}}
+            
           />
           <Input
             type="password"
@@ -65,7 +95,8 @@ const Register = () => {
               setFormData({ ...formData, password: e.target.value })
             }
             required
-            className="bg-background/50"
+            className="border-0 border-b border-primary bg-transparent rounded-none"
+            style={{ fontFamily: "Alef, sans-serif"}}
           />
           <Input
             type="password"
@@ -75,22 +106,33 @@ const Register = () => {
               setFormData({ ...formData, confirmPassword: e.target.value })
             }
             required
-            className="bg-background/50"
+            className="border-0 border-b border-primary bg-transparent rounded-none"
+            style={{ fontFamily: "Alef, sans-serif"}}
           />
-          <Button type="submit" className="w-full" size="lg">
+          <Button type="submit" className="w-full font-bold text-primary-foreground" size="lg"
+          style={{fontFamily: "Alef, sans-serif", fontSize: "16px"}}>
             SIGN UP
           </Button>
         </form>
 
         <div className="mt-6">
-          <p className="text-center text-sm text-muted-foreground mb-4">
-            or sign up with
-          </p>
+  <div className="flex items-center justify-center mb-4">
+    <div className="flex-1 border-t border-primary"></div>
+    <p
+      className="px-4 text-center text-sm text-primary"
+      style={{ fontFamily: "Alef, sans-serif" }}
+    >
+      or sign up with
+    </p>
+    <div className="flex-1 border-t border-primary"></div>
+  </div>
+
           <div className="flex gap-4 justify-center">
+            {/*Google*/}
             <Button
               variant="outline"
               size="icon"
-              className="rounded-full w-12 h-12"
+              className="rounded-full w-12 h-12 text-primary hover:text-primary-foreground hover:bg-primary"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path
@@ -111,10 +153,11 @@ const Register = () => {
                 />
               </svg>
             </Button>
+            {/*Facebook*/}
             <Button
               variant="outline"
               size="icon"
-              className="rounded-full w-12 h-12"
+              className="rounded-full w-12 h-12 text-primary hover:text-primary-foreground hover:bg-primary"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
@@ -123,6 +166,7 @@ const Register = () => {
           </div>
         </div>
       </Card>
+      </div>
     </div>
   );
 };
