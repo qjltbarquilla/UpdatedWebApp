@@ -92,6 +92,20 @@ export const DashboardSidebar = ({ selectedPatient }: DashboardSidebarProps) => 
               </Button>
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-1 pl-6">
+            <Link to={`/chat/${selectedPatient.id}`}>
+                <Button
+                  variant="ghost"
+                  className={`w-full justify-start text-sm font-bold ${
+                    location.pathname.includes("chat")
+                      ? "bg-primary-foreground text-primary hover:bg-primary-foreground"
+                : "text-primary-foreground font-normal hover:bg-primary-foreground/50 hover:font-bold"
+                  }`}
+                  style={{ fontFamily: '"Alef", sans serif'}}
+                >
+                  <FileText className="mr-3 h-4 w-4" />
+                  Conversation
+                </Button>
+              </Link>
               <Link to={`/transcript/${selectedPatient.id}`}>
                 <Button
                   variant="ghost"
@@ -105,20 +119,7 @@ export const DashboardSidebar = ({ selectedPatient }: DashboardSidebarProps) => 
                   <FileText className="mr-3 h-4 w-4" />
                   Transcript
                 </Button>
-              </Link>
-              <Link to={`/phq9/${selectedPatient.id}`}>
-                <Button
-                  variant="ghost"
-                  className={`w-full justify-start text-sm font-bold ${
-                    location.pathname.includes("phq9")
-                      ? "bg-primary-foreground text-primary hover:bg-primary-foreground"
-                : "text-primary-foreground font-normal hover:bg-primary-foreground/50 hover:font-bold"
-                  }`}
-                  style={{ fontFamily: '"Alef", sans serif'}}
-                >
-                  <BarChart3 className="mr-3 h-4 w-4" />
-                  PHQ-9 Score
-                </Button>
+              
               </Link>
               <Link to={`/emotional-analysis/${selectedPatient.id}`}>
                 <Button
@@ -133,20 +134,7 @@ export const DashboardSidebar = ({ selectedPatient }: DashboardSidebarProps) => 
                   <Brain className="mr-3 h-4 w-4" />
                   Emotional Analysis
                 </Button>
-              </Link>
-              <Link to={`/report-summary/${selectedPatient.id}`}>
-                <Button
-                  variant="ghost"
-                  className={`w-full justify-start text-sm font-bold ${
-                    location.pathname.includes("report-summary")
-                      ? "bg-primary-foreground text-primary hover:bg-primary-foreground"
-                : "text-primary-foreground font-normal hover:bg-primary-foreground/50 hover:font-bold"
-                  }`}
-                  style={{ fontFamily: '"Alef", sans serif'}}
-                >
-                  <FileCheck className="mr-3 h-4 w-4" />
-                  Report Summary
-                </Button>
+        
               </Link>
             </CollapsibleContent>
           </Collapsible>

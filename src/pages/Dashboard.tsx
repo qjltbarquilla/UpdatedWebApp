@@ -17,15 +17,13 @@ const mockRecentPatients = [
   { id: "1", name: "Hinako",   date: "2025-10-10" },
   { id: "2", name: "Kotoyuki", date: "2025-10-09" },
   { id: "3", name: "Rem",      date: "2025-10-08" },
-  { id: "4", name: "Jennifer", date: "2025-10-07" },
-  { id: "5", name: "Dylan",    date: "2025-10-06" },
 ];
 
 const mockPatientsByDate: Record<
   string,
   { id: string; name: string; time: string; color: string }[]
 > = {
-  "2025-10-13": [
+  "2025-10-8": [
     { id: "1", name: "Jennifer", time: "08:00", color: "bg-primary/30" },
     { id: "2", name: "Dylan",    time: "10:00", color: "bg-secondary/30" },
     { id: "3", name: "Rem",      time: "13:07", color: "bg-accent/30" },
@@ -176,10 +174,10 @@ const Dashboard = () => {
                   Welcome back, <span className="text-primary">{username}</span>
                 </h2>
                 <p
-                  className="text-primary/50"
+                  className="text-primary/80"
                   style={{ fontFamily: "Alef, sans serif", fontSize: "20px" }}
                 >
-                  This is the dashboard
+                  This is your dashboard 🥰
                 </p>
               </Card>
 
@@ -196,8 +194,8 @@ const Dashboard = () => {
                   style={{ fontFamily: "Alef, sans serif", fontSize: "16px" }}
                 >
                   {selectedPatient
-                    ? "Below is the most recently pre-assessed patients"
-                    : "Will show the 3 most recent patients. Scroll isn’t needed here."}
+                    ? "Below is the most recently pre-assessed patients. Select a patient to view more details."
+                    : "Below is the most recently pre-assessed patients. Select a patient to view more details."}
                 </p>
 
                 <div className="space-y-3">
@@ -243,7 +241,7 @@ const Dashboard = () => {
                 >
                   {selectedPatient
                     ? "Please select a date in the calendar to view patients"
-                    : "If there is no record on the selected date, a message will appear below."}
+                    : "Please select a date in the calendar to view patients"}
                 </p>
 
                 {date && (
@@ -372,7 +370,7 @@ const Dashboard = () => {
                   className="text-sm text-primary/50 mb-4"
                   style={{ fontFamily: "Alef, sans serif", fontSize: "16px" }}
                 >
-                  &lt;Description about selecting a date&gt;
+                  This is your calendar.
                 </p>
 
                 <Card

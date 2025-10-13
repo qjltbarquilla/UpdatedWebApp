@@ -9,6 +9,7 @@ import Contact from "./pages/Contact";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import ChatPage from "./pages/ChatPage";
 import Transcript from "./pages/Transcript.tsx";
 import PHQ9 from "./pages/PHQ9";
 import EmotionalAnalysis from "./pages/EmotionalAnalysis";
@@ -37,6 +38,7 @@ const App = () => (
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/chat/:patientId" element={<ChatPage />} />
           <Route path="/transcript/:patientId" element={<Transcript />} />
           // App.tsx
           <Route path="/phq9/:patientId" element={<PHQ9 />} />

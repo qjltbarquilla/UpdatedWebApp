@@ -10,8 +10,13 @@ import datetime
 import json
 import random
 import uuid
-import os 
 import re
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib import colors
+import os
 
 # === Database Configuration ===
 #MONGODB_URL = "mongodb+srv://Dylan:PD123@cluster0.qvy672n.mongodb.net/transcript_db?retryWrites=true&w=majority"
@@ -54,7 +59,7 @@ async def save_message(session_id: str, sender: str, text: str, message_type: st
     return result.inserted_id
 
 # === Load Intents File ===
-with open(os.path.join(os.path.dirname(__file__), "KB.json"), "r", encoding="utf-8") as file:
+with open(r"C:\Users\Juniper\Desktop\kid-whisper-vue\conversation\KB.json") as file:
     data = json.load(file)
 intents = data["intents"]
 
@@ -222,27 +227,201 @@ async def stop_session(session_id: str):
         "mapped_results": mapped_results
     }
 
+# === Fetch a Single Session (with fallback test ID) ===
 @app.get("/get-session/{session_id}")
 async def get_session(session_id: str):
-    """Fetches a saved conversation session from MongoDB for testing."""
-    
-    # 🔧 Hardcode your test session ID here temporarily
-    session_id = "f469f0a8-bb2f-4533-b741-9aa118d2e69f"
-    
+    """
+    Fetches a real PHQ-9 session document by its session_id.
+    Used by PHQ-9, Emotional Analysis, and other real patient pages.
+    """
     doc = await app.mongodb["session_analysis"].find_one({"session_id": session_id})
     if not doc:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
 
-    # Convert ObjectId and datetime to strings for JSON
     doc["_id"] = str(doc["_id"])
-    doc["timestamp"] = doc["timestamp"].isoformat()
+    if isinstance(doc["timestamp"], datetime.datetime):
+        doc["timestamp"] = doc["timestamp"].isoformat()
+
+    return doc
+@app.get("/get-transcript-demo")
+
+
+@app.get("/get-transcript-demo")
+async def get_transcript_demo():
+    """
+    Returns the fixed demo transcript used only by the Transcript page.
+    All other routes remain unaffected.
+    """
+    TEST_SESSION_ID = "f469f0a8-bb2f-4533-b741-9aa118d2e69f"
+    doc = await app.mongodb["session_analysis"].find_one({"session_id": TEST_SESSION_ID})
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="Demo transcript not found in MongoDB.")
+
+    doc["_id"] = str(doc["_id"])
+    if isinstance(doc["timestamp"], datetime.datetime):
+        doc["timestamp"] = doc["timestamp"].isoformat()
 
     return doc
 
 
 
 
+# === Fetch All Sessions (for Transcript Dashboard) ===
+@app.get("/get-sessions")
+async def get_sessions():
+    """
+    Returns all saved session summaries (without full conversation)
+    for populating the transcript dashboard list.
+    """
+    cursor = app.mongodb["session_analysis"].find().sort("timestamp", -1)
+    sessions = await cursor.to_list(length=100)
+
+    formatted = []
+    for doc in sessions:
+        formatted.append({
+            "_id": str(doc["_id"]),
+            "session_id": doc.get("session_id"),
+            "timestamp": doc.get("timestamp").isoformat() if isinstance(doc.get("timestamp"), datetime.datetime) else doc.get("timestamp"),
+            "total_score": doc.get("total_score", 0),
+            "severity_band": doc.get("severity_band", "Unknown"),
+            "message_count": doc.get("message_count", 0),
+        })
+
+    # ✅ If you have no records yet, return the test one (for display)
+    if not formatted:
+        formatted = [{
+            "_id": "test123",
+            "session_id": "f469f0a8-bb2f-4533-b741-9aa118d2e69f",
+            "timestamp": datetime.datetime.utcnow().isoformat(),
+            "total_score": 12,
+            "severity_band": "Moderate",
+            "message_count": 8,
+        }]
+
+    return formatted
+
+
+# === Generate Session Report (PDF / JSON) ===
+@app.get("/generate-report/{session_id}")
+async def generate_report(session_id: str, format: str = "pdf"):
+    """
+    Generates a session summary report in either PDF or JSON format.
+    Example:
+      /generate-report/1?format=pdf
+      /generate-report/f469f0a8...?format=json
+    """
+    TEST_SESSION_ID = "f469f0a8-bb2f-4533-b741-9aa118d2e69f"
+    use_id = TEST_SESSION_ID if session_id == "1" else session_id
+
+    # Fetch document
+    doc = await app.mongodb["session_analysis"].find_one({"session_id": session_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+    # Convert MongoDB types
+    doc["_id"] = str(doc["_id"])
+    if isinstance(doc["timestamp"], datetime.datetime):
+        doc["timestamp"] = doc["timestamp"].isoformat()
+
+    # JSON mode
+    if format.lower() == "json":
+        print(f"📄 Returning JSON report for session {use_id}")
+        return JSONResponse(content=doc)
+
+    # PDF mode
+    filename = f"PHQ9_Report_{use_id}.pdf"
+    filepath = os.path.join(os.getcwd(), filename)
+
+    pdf = SimpleDocTemplate(filepath, pagesize=letter)
+    styles = getSampleStyleSheet()
+    content = []
+
+    # Header info
+    content.append(Paragraph("<b>PHQ-9 Conversation Summary Report</b>", styles["Title"]))
+    content.append(Spacer(1, 12))
+    content.append(Paragraph(f"<b>Session ID:</b> {use_id}", styles["Normal"]))
+    content.append(Paragraph(f"<b>Date:</b> {doc['timestamp']}", styles["Normal"]))
+    content.append(Spacer(1, 12))
+    content.append(Paragraph(f"<b>Total PHQ-9 Score:</b> {doc.get('total_score', 'N/A')}", styles["Normal"]))
+    content.append(Paragraph(f"<b>Severity Level:</b> {doc.get('severity_band', 'N/A')}", styles["Normal"]))
+    content.append(Spacer(1, 12))
+
+    # Placeholder for macroexpression (future feature)
+    content.append(Paragraph("<b>Macroexpression Insights:</b>", styles["Heading3"]))
+    content.append(Paragraph("No macroexpression data recorded for this session.", styles["Normal"]))
+    content.append(Spacer(1, 12))
+
+    # Conversation transcript
+    content.append(Paragraph("<b>Conversation Transcript:</b>", styles["Heading3"]))
+    for line in doc.get("conversation_text", "").split("\n"):
+        if line.startswith("User:"):
+            content.append(Paragraph(f"<font color='blue'>{line}</font>", styles["Normal"]))
+        elif line.startswith("Bot:"):
+            content.append(Paragraph(f"<font color='gray'>{line}</font>", styles["Normal"]))
+        else:
+            content.append(Paragraph(line, styles["Normal"]))
+    content.append(Spacer(1, 12))
+
+    # PHQ-9 mapping table
+    mapped = doc.get("mapped_results", [])
+    if mapped:
+        content.append(Paragraph("<b>PHQ-9 Mappings:</b>", styles["Heading3"]))
+        table_data = [["Utterance", "Question ID", "Severity"]]
+        for m in mapped:
+            table_data.append([
+                m["sentence"], f"Q{m['question_id'] + 1}", str(m["severity"])
+            ])
+        table = Table(table_data, repeatRows=1)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ]))
+        content.append(table)
+
+    pdf.build(content)
+    print(f"✅ PDF report generated: {filepath}")
+
+    return FileResponse(filepath, filename=filename, media_type="application/pdf")
+
+
 # === Root Endpoint ===
 @app.get("/")
 def root():
     return {"message": "PHQ-9 model backend is alive"}
+
+# === Frontend Redirect Fallback (React Router Safe) ===
+'''@app.get("/{full_path:path}", response_class=HTMLResponse)
+async def frontend_routes(full_path: str):
+    """
+    Safe fallback that preserves React Router behavior even after visiting /transcript/:id.
+    Does NOT break navigation for other routes.
+    """
+
+    # ✅ Let API routes return 404 normally
+    if full_path.startswith((
+        "predict", "stop-session", "get-session", "get-sessions",
+        "get-transcript-demo", "generate-report"
+    )):
+        raise HTTPException(status_code=404, detail="API endpoint not found")
+
+    # ✅ This keeps React control without breaking history or routes
+    return """
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Redirecting...</title>
+        <script>
+          // Dynamically redirect only within frontend app context
+          const target = window.location.origin;
+          window.location.href = target;
+        </script>
+      </head>
+      <body>
+        <p>Loading frontend app...</p>
+      </body>
+    </html>
+    """
+
+'''
