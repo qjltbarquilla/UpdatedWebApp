@@ -1,0 +1,87 @@
+@import url('https://fonts.googleapis.com/css2?family=Alef:wght@400;700&family=Amatica+SC:wght@400;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --primary: 164 53% 19%;
+    --primary-foreground: 55 79% 94%;
+
+    --dashboard-background: 44 83% 95%;
+    --foreground: 170 45% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 170 45% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 170 45% 15%;
+
+    --secondary: 15 80% 70%;
+    --secondary-foreground: 170 45% 15%;
+
+    --muted: 174 41% 41%;
+    --muted-foreground: 170 25% 40%;
+
+    --accent: 340 70% 75%;
+    --accent-foreground: 170 45% 15%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 165 25% 80%;
+    --input: 165 25% 90%;
+    --ring: 170 45% 45%;
+
+    --radius: 1rem;
+
+    --sidebar-background: 169 31% 67%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 170 50% 35%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 170 40% 55%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 170 35% 40%;
+    --sidebar-ring: 170 45% 65%;
+
+    --hero-gradient: linear-gradient(135deg, hsl(165 35% 95%), hsl(180 40% 92%));
+    --card-soft: 165 30% 92%;
+    --overlay: 170 25% 85% / 0.5;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.custom-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+  background: transparent; 
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--primary) / 0.4); 
+  border-radius: 8px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--primary)); 
+}
+
+.custom-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--primary) / 0.4) transparent;
+}
