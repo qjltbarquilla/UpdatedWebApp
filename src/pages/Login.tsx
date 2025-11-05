@@ -17,8 +17,13 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // simple frontend validation for tests & UX
+    if (!formData.username || !formData.password) {
+      toast.error("Please enter username and password.");
+      return;
+    }
+
     try {
-      // Send login request to backend
       const response = await fetch("http://localhost:5000/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -28,17 +33,16 @@ const Login = () => {
       const data = await response.json();
 
       if (response.ok) {
-        // Store JWT token and username in localStorage
-        localStorage.setItem("token", data.token);  // Save the token
-        localStorage.setItem("username", data.username);  // Save the username
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("username", data.username);
 
         toast.success("Logged in successfully!");
-        navigate("/dashboard"); // Navigate to Dashboard after successful login
+        navigate("/dashboard");
       } else {
         toast.error(data.message || "Login failed. Please try again.");
       }
     } catch (error) {
-      console.error("❌ Error logging in:", error);
+      console.error("Error logging in:", error);
       toast.error("Something went wrong. Please try again later.");
     }
   };
@@ -59,6 +63,7 @@ const Login = () => {
           >
             LOGIN
           </h1>
+
           <p
             className="text-center font-normal text-primary mb-6"
             style={{ fontFamily: "Alef, sans-serif" }}
@@ -73,25 +78,26 @@ const Login = () => {
             </Link>
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Added data-testid to form for scoping in tests */}
+          <form data-testid="login-form" onSubmit={handleSubmit} className="space-y-4">
+            {/* Added aria-label so tests can select unambiguously */}
             <Input
+              aria-label="Username"
               placeholder="Username"
               value={formData.username}
-              onChange={(e) =>
-                setFormData({ ...formData, username: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
               required
               className="border-0 border-b border-primary bg-transparent rounded-none"
               style={{ fontFamily: "Alef, sans-serif" }}
             />
+
             <div>
               <Input
+                aria-label="Password"
                 type="password"
                 placeholder="Password"
                 value={formData.password}
-                onChange={(e) =>
-                  setFormData({ ...formData, password: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 required
                 className="border-0 border-b border-primary bg-transparent rounded-none"
                 style={{ fontFamily: "Alef, sans-serif" }}
@@ -106,7 +112,10 @@ const Login = () => {
                 </Link>
               </div>
             </div>
+
+            {/* Added data-testid to submit for easy selection */}
             <Button
+              data-testid="login-submit"
               type="submit"
               className="w-full font-bold text-primary-foreground"
               size="lg"
@@ -127,6 +136,7 @@ const Login = () => {
               </p>
               <div className="flex-1 border-t border-primary"></div>
             </div>
+
             <div className="flex gap-4 justify-center">
               {/* Google */}
               <Button
@@ -153,6 +163,7 @@ const Login = () => {
                   />
                 </svg>
               </Button>
+
               {/* Facebook */}
               <Button
                 variant="outline"

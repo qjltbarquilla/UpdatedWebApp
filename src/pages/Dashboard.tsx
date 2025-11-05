@@ -11,8 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Bell, User } from "lucide-react";
 import timeCardBg from "@/assets/time-card-bg.jpg";
 
-/* ---------------- Mock data (swap with API later) ---------------- */
-
 const mockRecentPatients = [
   { id: "1", name: "Hinako",   date: "2025-10-10" },
   { id: "2", name: "Kotoyuki", date: "2025-10-09" },
@@ -31,8 +29,6 @@ const mockPatientsByDate: Record<
     { id: "5", name: "Kotoyuki", time: "16:10", color: "bg-secondary/30" },
   ],
 };
-
-/* ---------------- helpers ---------------- */
 
 const keyFor = (d?: Date) =>
   d

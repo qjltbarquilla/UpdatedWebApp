@@ -1,14 +1,8 @@
 import {NavLink, Link, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import {
-  LayoutDashboard,
-  Settings,
-  LogOut,
-  X,
-  ChevronDown,
-  FileText,
-  BarChart3,
-  Brain,
+  LayoutDashboard, Settings, LogOut, X, ChevronDown, FileText,
+  BarChart3, Brain,
   FileCheck,
   MessageSquareText,
 } from "lucide-react";
