@@ -202,14 +202,14 @@ const Dashboard = () => {
         return;
       }
 
-      toast.success("Patient deleted successfully.");
+          toast.success("Patient deleted successfully.");
 
-      if (selectedPatient?.id === id) {
-        setSelectedPatient(null);
-      }
+    // 🔥 Always clear the sidebar selection after any delete
+    setSelectedPatient(null);
 
-      // Refresh lists after delete
-      fetchPatients();
+    // Refresh lists after delete
+    fetchPatients();
+
     } catch (err) {
       console.error("❌ Error deleting patient:", err);
       toast.error("Something went wrong while deleting the patient.");
