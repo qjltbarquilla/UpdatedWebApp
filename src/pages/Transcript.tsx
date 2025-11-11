@@ -555,7 +555,7 @@ const Transcript = () => {
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="bg-primary-foreground border border-red-600">
+        <AlertDialogContent className="bg-primary-foreground border-4 border-black">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this session?</AlertDialogTitle>
             <AlertDialogDescription>
