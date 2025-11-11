@@ -1,3 +1,5 @@
+//EmotionalAnalysis.tsx
+
 import { useEffect, useRef, useState } from "react";
 import Webcam from "react-webcam";
 import { useParams } from "react-router-dom";

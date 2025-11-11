@@ -10,25 +10,35 @@ import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Bell, User } from "lucide-react";
 import timeCardBg from "@/assets/time-card-bg.jpg";
+import { Pencil, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import EditPatientForm from "@/pages/EditPatientForm";
+import { toast } from "sonner";
 
-const mockRecentPatients = [
-  { id: "1", name: "Hinako",   date: "2025-10-10" },
-  { id: "2", name: "Kotoyuki", date: "2025-10-09" },
-  { id: "3", name: "Rem",      date: "2025-10-08" },
-];
+type RecentPatient = { id: string; name: string; date: string };
 
-const mockPatientsByDate: Record<
+type PatientByDate = Record<
   string,
   { id: string; name: string; time: string; color: string }[]
-> = {
-  "2025-10-8": [
-    { id: "1", name: "Jennifer", time: "08:00", color: "bg-primary/30" },
-    { id: "2", name: "Dylan",    time: "10:00", color: "bg-secondary/30" },
-    { id: "3", name: "Rem",      time: "13:07", color: "bg-accent/30" },
-    { id: "4", name: "Genaro",   time: "14:30", color: "bg-primary/30" },
-    { id: "5", name: "Kotoyuki", time: "16:10", color: "bg-secondary/30" },
-  ],
-};
+>;
 
 const keyFor = (d?: Date) =>
   d
@@ -58,13 +68,83 @@ const FadeScroll = ({
 const Dashboard = () => {
   const navigate = useNavigate();
   const [date, setDate] = useState<Date | undefined>(new Date());
-  const [selectedPatient, setSelectedPatient] = useState<{ id: string; name: string } | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [time, setTime] = useState<string>("");
   const [username, setUsername] = useState<string>("");
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserInfo, setShowUserInfo] = useState(false);
+
+  const [recentPatients, setRecentPatients] = useState<RecentPatient[]>([]);
+  const [patientsByDate, setPatientsByDate] = useState<PatientByDate>({});
+
+  const fetchPatients = async () => {
+    try {
+      const usernameFromStorage = localStorage.getItem("username");
+      if (!usernameFromStorage) {
+        console.error("No username in localStorage; cannot fetch patients.");
+        return;
+      }
+
+      const res = await fetch(
+        `http://localhost:5000/api/patients?ownerUsername=${encodeURIComponent(
+          usernameFromStorage
+        )}`
+      );
+
+      const data = await res.json();
+      console.log("📥 Patients response:", data);
+
+      if (!Array.isArray(data)) {
+        console.error("Unexpected patients response:", data);
+        return;
+      }
+
+      // Sort newest first
+      data.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
+      // Recent patients = top 3
+      const recent: RecentPatient[] = data.slice(0, 3).map((p: any) => ({
+        id: p._id,
+        name: p.name,
+        date: p.createdAt,
+      }));
+
+      // Group by date for Patient List
+      const grouped: PatientByDate = {};
+      const colors = ["bg-primary/30", "bg-secondary/30", "bg-accent/30"];
+
+      data.forEach((p: any, index: number) => {
+        const created = new Date(p.createdAt);
+        const key = keyFor(created); // "YYYY-MM-DD"
+        const time = created.toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        const color = colors[index % colors.length];
+
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push({
+          id: p._id,
+          name: p.name,
+          time,
+          color,
+        });
+      });
+
+      setRecentPatients(recent);
+      setPatientsByDate(grouped);
+    } catch (err) {
+      console.error("❌ Failed to fetch patients:", err);
+    }
+  };
 
   useEffect(() => {
     const tick = () => {
@@ -88,7 +168,58 @@ const Dashboard = () => {
     else navigate("/login");
   }, [navigate]);
 
-  const handlePatientSelect = (p: { id: string; name: string }) => setSelectedPatient(p);
+  useEffect(() => {
+    fetchPatients();
+  }, []);
+
+  const handlePatientAdded = () => {
+    fetchPatients();
+  };
+
+  const handleDeletePatient = async (id: string) => {
+    try {
+      const usernameFromStorage = localStorage.getItem("username");
+      if (!usernameFromStorage) {
+        console.error("No username in localStorage; cannot delete patient.");
+        toast.error("No user found. Please log in again.");
+        return;
+      }
+
+      const res = await fetch(
+        `http://localhost:5000/api/patients/${id}?ownerUsername=${encodeURIComponent(
+          usernameFromStorage
+        )}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error("❌ Failed to delete patient:", data);
+        toast.error(data.message || "Failed to delete patient.");
+        return;
+      }
+
+      toast.success("Patient deleted successfully.");
+
+      if (selectedPatient?.id === id) {
+        setSelectedPatient(null);
+      }
+
+      // Refresh lists after delete
+      fetchPatients();
+    } catch (err) {
+      console.error("❌ Error deleting patient:", err);
+      toast.error("Something went wrong while deleting the patient.");
+    }
+  };
+
+  // ⬇️ BACK TO ORIGINAL: only set selectedPatient, no navigation
+  const handlePatientSelect = (p: { id: string; name: string }) => {
+    setSelectedPatient(p);
+  };
 
   const handleNotificationClick = () => {
     setShowNotifications(true);
@@ -100,11 +231,14 @@ const Dashboard = () => {
   };
 
   const selectedKey = keyFor(date);
-  const patientsForDay = mockPatientsByDate[selectedKey] ?? [];
+  const patientsForDay = patientsByDate[selectedKey] ?? [];
 
   return (
     <div className="flex min-h-screen bg-background">
-      <DashboardSidebar selectedPatient={selectedPatient || undefined} />
+      <DashboardSidebar
+        selectedPatient={selectedPatient || undefined}
+        onPatientAdded={handlePatientAdded}
+      />
 
       <main className="flex-1 bg-dashboard w-full">
         <div className="p-4 md:p-8">
@@ -189,31 +323,72 @@ const Dashboard = () => {
                   className="text-sm text-primary/50 mb-4"
                   style={{ fontFamily: "Alef, sans serif", fontSize: "16px" }}
                 >
-                  {selectedPatient
-                    ? "Below is the most recently pre-assessed patients. Select a patient to view more details."
-                    : "Below is the most recently pre-assessed patients. Select a patient to view more details."}
+                  Below is the most recently pre-assessed patients. Select a
+                  patient to view more details.
                 </p>
 
                 <div className="space-y-3">
-                  {mockRecentPatients.slice(0, 3).map((p) => (
+                  {recentPatients.slice(0, 3).map((p) => (
                     <Card
                       key={p.id}
                       className="p-4 bg-accent hover:bg-accent/80 cursor-pointer transition-colors"
-                      onClick={() => handlePatientSelect({ id: p.id, name: p.name })}
+                      onClick={() =>
+                        handlePatientSelect({ id: p.id, name: p.name })
+                      }
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-accent-foreground">
-                          {new Date(p.date).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </span>
-                        <span className="font-semibold text-accent-foreground">{p.name}</span>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-accent-foreground">
+                            {new Date(p.date).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </span>
+                          <span className="font-semibold text-accent-foreground">
+                            {p.name}
+                          </span>
+                        </div>
+
+                        {/* Delete button with confirmation */}
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-accent-foreground hover:text-red-600 hover:bg-accent/60"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete patient?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This action cannot be undone. This will
+                                permanently remove{" "}
+                                <span className="font-semibold">{p.name}</span>{" "}
+                                from the patient list.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-red-600 hover:bg-red-700"
+                                onClick={() => handleDeletePatient(p.id)}
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </Card>
                   ))}
 
-                  {mockRecentPatients.length === 0 && (
+                  {recentPatients.length === 0 && (
                     <Card className="p-4 bg-muted/30">
                       <p className="text-sm text-muted-foreground">
                         No recent patients to show.
@@ -235,9 +410,7 @@ const Dashboard = () => {
                   className="text-sm text-primary/50 mb-4"
                   style={{ fontFamily: "Alef, sans serif", fontSize: "16px" }}
                 >
-                  {selectedPatient
-                    ? "Please select a date in the calendar to view patients"
-                    : "Please select a date in the calendar to view patients"}
+                  Please select a date in the calendar to view patients
                 </p>
 
                 {date && (
@@ -256,17 +429,101 @@ const Dashboard = () => {
                         </p>
                       </Card>
                     ) : (
-                      <FadeScroll maxHeight={230 /* ≈ fits ~3 cards */}>
+                      <FadeScroll maxHeight={230}>
                         <div className="space-y-2">
                           {patientsForDay.map((p) => (
                             <Card
                               key={p.id}
                               className={`p-3 ${p.color} hover:opacity-80 cursor-pointer transition-opacity`}
-                              onClick={() => handlePatientSelect({ id: p.id, name: p.name })}
+                              onClick={() =>
+                                handlePatientSelect({ id: p.id, name: p.name })
+                              }
                             >
-                              <div className="flex items-center justify-between">
-                                <span className="font-semibold text-sm text-primary">{p.time}</span>
-                                <span className="font-semibold">{p.name}</span>
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex flex-col">
+                                  <span className="font-semibold text-sm text-primary">
+                                    {p.time}
+                                  </span>
+                                  <span className="font-semibold">
+                                    {p.name}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                  {/* ✏️ Edit patient */}
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6 p-0 text-primary hover:text-primary/80 hover:bg-transparent"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                    </DialogTrigger>
+
+                                    <DialogContent className="bg-primary-foreground border-4 border-black rounded-2xl shadow-lg text-primary">
+                                      <DialogHeader>
+                                        <DialogTitle>Edit patient</DialogTitle>
+                                        <DialogDescription>
+                                          Update this patient&apos;s
+                                          information. The original creation
+                                          date will stay the same.
+                                        </DialogDescription>
+                                      </DialogHeader>
+
+                                      <EditPatientForm
+                                        patientId={p.id}
+                                        onSuccess={() => {
+                                          fetchPatients();
+                                        }}
+                                      />
+                                    </DialogContent>
+                                  </Dialog>
+
+                                  {/* 🗑️ Delete */}
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="text-primary hover:text-red-600 hover:bg-white/40"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>
+                                          Delete patient?
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          This action cannot be undone. This will
+                                          permanently remove{" "}
+                                          <span className="font-semibold">
+                                            {p.name}
+                                          </span>{" "}
+                                          from the patient list.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>
+                                          Cancel
+                                        </AlertDialogCancel>
+                                        <AlertDialogAction
+                                          className="bg-red-600 hover:bg-red-700"
+                                          onClick={() =>
+                                            handleDeletePatient(p.id)
+                                          }
+                                        >
+                                          Delete
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
                               </div>
                             </Card>
                           ))}
@@ -295,11 +552,18 @@ const Dashboard = () => {
                 >
                   <div
                     className="flex flex-col justify-center items-center w-full h-full"
-                    style={{ width: "410px", height: "200px", justifyContent: "center" }}
+                    style={{
+                      width: "410px",
+                      height: "200px",
+                      justifyContent: "center",
+                    }}
                   >
                     <div
                       className="text-sm text-primary-foreground"
-                      style={{ fontFamily: "Alef, sans serif", fontSize: "16px" }}
+                      style={{
+                        fontFamily: "Alef, sans serif",
+                        fontSize: "16px",
+                      }}
                     >
                       {new Date().toLocaleDateString("en-US", {
                         weekday: "long",
@@ -308,7 +572,10 @@ const Dashboard = () => {
                     </div>
                     <div
                       className="text-sm text-primary-foreground mb-2"
-                      style={{ fontFamily: "Alef, sans serif", fontSize: "16px" }}
+                      style={{
+                        fontFamily: "Alef, sans serif",
+                        fontSize: "16px",
+                      }}
                     >
                       {new Date().toLocaleDateString("en-US", {
                         month: "short",
@@ -332,7 +599,10 @@ const Dashboard = () => {
                     </div>
                     <div
                       className="text-sm text-primary-foreground mt-2"
-                      style={{ fontFamily: "Alef, sans serif", fontSize: "16px" }}
+                      style={{
+                        fontFamily: "Alef, sans serif",
+                        fontSize: "16px",
+                      }}
                     >
                       Asia/Manila Time
                     </div>

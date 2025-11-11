@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Body
 from pydantic import BaseModel
 from typing import Optional
 import torch
@@ -17,7 +17,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 import os
-
+from fastapi import status
 # === Database Configuration ===
 #MONGODB_URL = "mongodb+srv://Dylan:PD123@cluster0.qvy672n.mongodb.net/transcript_db?retryWrites=true&w=majority"
 MONGODB_DB = "transcript_db"
@@ -90,6 +90,8 @@ model.eval()
 # === Data Models ===
 class UserInput(BaseModel):
     text: str
+    ownerUsername: Optional[str] = None
+    patientId: Optional[str] = None
 
 class PredictionResponse(BaseModel):
     question_id: int
@@ -107,6 +109,19 @@ class MappedResult(BaseModel):
 
 class FullPredictionResponse(BaseModel):
     mapped_results: list[MappedResult]
+
+class StopSessionMeta(BaseModel):
+    ownerUsername: Optional[str] = None
+    patientId: Optional[str] = None
+
+    # NEW fields from frontend:
+    patientName: Optional[str] = None
+    patientAge: Optional[int] = None
+    patientGender: Optional[str] = None
+
+    emotion: Optional[str] = None
+    emotionConfidence: Optional[float] = None
+
 
 # === Track Closed Sessions (in-memory) ===
 closed_sessions = set()
@@ -148,7 +163,10 @@ async def predict_phq9(user_input: UserInput, session_id: Optional[str] = Query(
 
 # === Stop Session + Auto Analysis ===
 @app.post("/stop-session/{session_id}")
-async def stop_session(session_id: str):
+async def stop_session(
+    session_id: str,
+    meta: StopSessionMeta = Body(default=StopSessionMeta())
+):
     if session_id in closed_sessions:
         return {"message": f"Session {session_id} was already stopped earlier."}
 
@@ -161,10 +179,20 @@ async def stop_session(session_id: str):
         print(f"⚠️ No messages found for {session_id}")
         return {"message": f"No messages found for session {session_id}."}
 
-    conversation_text = "\n".join([f"{msg['sender'].capitalize()}: {msg['text']}" for msg in all_messages])
+        # derive real start/end timestamps from messages
+    started_at = all_messages[0]["timestamp"]
+    ended_at = all_messages[-1]["timestamp"]
 
-    user_text = " ".join([msg["text"] for msg in all_messages if msg["sender"] == "user"])
-    sentences = [s.strip() for s in user_text.split('.') if s.strip()]
+    # Build conversation text
+    conversation_text = "\n".join(
+        [f"{msg['sender'].capitalize()}: {msg['text']}" for msg in all_messages]
+    )
+
+    # Collect only user messages
+    user_text = " ".join(
+        [msg["text"] for msg in all_messages if msg["sender"] == "user"]
+    )
+    sentences = [s.strip() for s in user_text.split(".") if s.strip()]
 
     mapped_results, tally = [], {}
 
@@ -184,34 +212,70 @@ async def stop_session(session_id: str):
             question_id = torch.argmax(question_logits, dim=1).item()
             severity = torch.argmax(severity_logits, dim=1).item()
 
-        mapped_results.append({
-            "sentence": sentence,
-            "question_id": question_id,
-            "severity": severity
-        })
+        mapped_results.append(
+            {
+                "sentence": sentence,
+                "question_id": question_id,
+                "severity": severity,
+            }
+        )
         tally[question_id] = tally.get(question_id, 0) + severity
 
     total_score = sum(tally.values())
 
-    def get_band(score):
-        if score <= 4: return "Minimal"
-        elif score <= 9: return "Mild"
-        elif score <= 14: return "Moderate"
-        elif score <= 19: return "Moderately Severe"
-        else: return "Severe"
+    def get_band(score: int) -> str:
+        if score <= 4:
+            return "Minimal"
+        elif score <= 9:
+            return "Mild"
+        elif score <= 14:
+            return "Moderate"
+        elif score <= 19:
+            return "Moderately Severe"
+        else:
+            return "Severe"
 
     severity_band = get_band(total_score)
 
     summary_doc = {
-        "session_id": session_id,
-        "timestamp": datetime.datetime.utcnow(),
-        "conversation_text": conversation_text,
-        "mapped_results": mapped_results,
-        "severity_tally": {str(k): v for k, v in tally.items()},
+    "session_id": session_id,
+
+    # 👇 use real session times
+    "timestamp": ended_at,        # keep for backward compatibility
+    "started_at": started_at,
+    "ended_at": ended_at,
+
+    "conversation_text": conversation_text,
+    "mapped_results": mapped_results,
+    "severity_tally": {str(k): v for k, v in tally.items()},
+    "total_score": total_score,
+    "severity_band": severity_band,
+    "message_count": len(all_messages),
+
+    "ownerUsername": meta.ownerUsername,
+    "patientId": meta.patientId,
+    "patientName": meta.patientName,
+    "patientAge": meta.patientAge,
+    "patientGender": meta.patientGender,
+    "emotion_label": meta.emotion,
+    "emotion_confidence": meta.emotionConfidence,
+}
+
+
+    try:
+        result = await app.mongodb["session_analysis"].insert_one(summary_doc)
+        print(f"✅ Full conversation summary saved with ID: {result.inserted_id}")
+    except Exception as e:
+        print(f"❌ Error saving conversation summary: {e}")
+
+    return {
+        "message": f"Session {session_id} stopped and full conversation saved.",
+        "severity_tally": tally,
         "total_score": total_score,
         "severity_band": severity_band,
-        "message_count": len(all_messages)
+        "mapped_results": mapped_results,
     }
+
 
     try:
         result = await app.mongodb["session_analysis"].insert_one(summary_doc)
@@ -269,38 +333,42 @@ async def get_transcript_demo():
 
 # === Fetch All Sessions (for Transcript Dashboard) ===
 @app.get("/get-sessions")
-async def get_sessions():
+async def get_sessions(
+    ownerUsername: str = Query(...),
+    patientId: Optional[str] = Query(None),
+):
     """
-    Returns all saved session summaries (without full conversation)
+    Returns saved session summaries filtered by owner (and optionally patient)
     for populating the transcript dashboard list.
     """
-    cursor = app.mongodb["session_analysis"].find().sort("timestamp", -1)
+    query = {"ownerUsername": ownerUsername}
+    if patientId is not None:
+        query["patientId"] = patientId
+
+    cursor = app.mongodb["session_analysis"].find(query).sort("timestamp", -1)
     sessions = await cursor.to_list(length=100)
 
     formatted = []
     for doc in sessions:
-        formatted.append({
-            "_id": str(doc["_id"]),
-            "session_id": doc.get("session_id"),
-            "timestamp": doc.get("timestamp").isoformat() if isinstance(doc.get("timestamp"), datetime.datetime) else doc.get("timestamp"),
-            "total_score": doc.get("total_score", 0),
-            "severity_band": doc.get("severity_band", "Unknown"),
-            "message_count": doc.get("message_count", 0),
-        })
+        formatted.append(
+            {
+                "_id": str(doc["_id"]),
+                "session_id": doc.get("session_id"),
+                "timestamp": doc.get("timestamp").isoformat()
+                if isinstance(doc.get("timestamp"), datetime.datetime)
+                else doc.get("timestamp"),
+                "total_score": doc.get("total_score", 0),
+                "severity_band": doc.get("severity_band", "Unknown"),
+                "message_count": doc.get("message_count", 0),
+            }
+        )
 
-    # ✅ If you have no records yet, return the test one (for display)
+    # You *can* keep the demo fallback if you want, but with real filters
+    # it probably makes more sense to just return an empty list.
     if not formatted:
-        formatted = [{
-            "_id": "test123",
-            "session_id": "f469f0a8-bb2f-4533-b741-9aa118d2e69f",
-            "timestamp": datetime.datetime.utcnow().isoformat(),
-            "total_score": 12,
-            "severity_band": "Moderate",
-            "message_count": 8,
-        }]
+        return []
 
     return formatted
-
 
 # === Generate Session Report (PDF / JSON) ===
 @app.get("/generate-report/{session_id}")
@@ -315,9 +383,9 @@ async def generate_report(session_id: str, format: str = "pdf"):
     use_id = TEST_SESSION_ID if session_id == "1" else session_id
 
     # Fetch document
-    doc = await app.mongodb["session_analysis"].find_one({"session_id": session_id})
+    doc = await app.mongodb["session_analysis"].find_one({"session_id": use_id})
     if not doc:
-        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+        raise HTTPException(status_code=404, detail=f"Session {use_id} not found")
 
     # Convert MongoDB types
     doc["_id"] = str(doc["_id"])
@@ -337,7 +405,7 @@ async def generate_report(session_id: str, format: str = "pdf"):
     styles = getSampleStyleSheet()
     content = []
 
-    # Header info
+    # ── Header info ─────────────────────────────────────────
     content.append(Paragraph("<b>PHQ-9 Conversation Summary Report</b>", styles["Title"]))
     content.append(Spacer(1, 12))
     content.append(Paragraph(f"<b>Session ID:</b> {use_id}", styles["Normal"]))
@@ -347,12 +415,40 @@ async def generate_report(session_id: str, format: str = "pdf"):
     content.append(Paragraph(f"<b>Severity Level:</b> {doc.get('severity_band', 'N/A')}", styles["Normal"]))
     content.append(Spacer(1, 12))
 
-    # Placeholder for macroexpression (future feature)
+    # ── Patient info (NEW) ────────────────────────────────
+    patient_name = doc.get("patientName")
+    patient_age = doc.get("patientAge")
+    patient_gender = doc.get("patientGender")
+
+    if patient_name or patient_age or patient_gender:
+        content.append(Paragraph(
+            f"<b>Patient:</b> {patient_name or 'N/A'}",
+            styles["Normal"]
+        ))
+        content.append(Paragraph(
+            f"<b>Age:</b> {patient_age if patient_age is not None else 'N/A'} &nbsp;&nbsp; "
+            f"<b>Gender:</b> {patient_gender or 'N/A'}",
+            styles["Normal"]
+        ))
+        content.append(Spacer(1, 12))
+
+    # ── Emotion snapshot (NEW) ────────────────────────────
+    emotion_label = doc.get("emotion_label")
+    emotion_conf = doc.get("emotion_confidence")
+
+    if emotion_label or emotion_conf is not None:
+        emo_text = f"<b>Emotion Snapshot:</b> {emotion_label or 'N/A'}"
+        if emotion_conf is not None:
+            emo_text += f" ({round(emotion_conf)}% confidence)"
+        content.append(Paragraph(emo_text, styles["Normal"]))
+        content.append(Spacer(1, 12))
+
+    # ── Placeholder for macroexpression (existing) ────────
     content.append(Paragraph("<b>Macroexpression Insights:</b>", styles["Heading3"]))
     content.append(Paragraph("No macroexpression data recorded for this session.", styles["Normal"]))
     content.append(Spacer(1, 12))
 
-    # Conversation transcript
+    # ── Conversation transcript ───────────────────────────
     content.append(Paragraph("<b>Conversation Transcript:</b>", styles["Heading3"]))
     for line in doc.get("conversation_text", "").split("\n"):
         if line.startswith("User:"):
@@ -363,7 +459,7 @@ async def generate_report(session_id: str, format: str = "pdf"):
             content.append(Paragraph(line, styles["Normal"]))
     content.append(Spacer(1, 12))
 
-    # PHQ-9 mapping table
+    # ── PHQ-9 mapping table ───────────────────────────────
     mapped = doc.get("mapped_results", [])
     if mapped:
         content.append(Paragraph("<b>PHQ-9 Mappings:</b>", styles["Heading3"]))
@@ -385,6 +481,23 @@ async def generate_report(session_id: str, format: str = "pdf"):
 
     return FileResponse(filepath, filename=filename, media_type="application/pdf")
 
+# === Delete a Transcript / Session Result ===
+from fastapi import status
+
+@app.delete("/delete-session/{session_id}")
+async def delete_session(session_id: str):
+    """
+    Deletes a transcript/session record by its session_id.
+    """
+    result = await app.mongodb["session_analysis"].delete_one({"session_id": session_id})
+
+    if result.deleted_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session {session_id} not found."
+        )
+
+    return {"message": f"Session {session_id} has been deleted successfully."}
 
 # === Root Endpoint ===
 @app.get("/")

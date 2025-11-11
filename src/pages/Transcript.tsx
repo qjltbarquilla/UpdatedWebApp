@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,16 @@ import {
   Download,
   Loader2,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 
 /* ===== Types ===== */
@@ -22,35 +32,107 @@ interface SessionSummary {
   total_score: number;
   severity_band: string;
   message_count: number;
+
+  emotion_label?: string;
+  emotion_confidence?: number;
 }
+
 interface SessionAnalysis {
   session_id: string;
   timestamp: string;
   conversation_text: string;
   total_score: number;
   severity_band: string;
+
+  started_at?: string;
+  ended_at?: string;
+
+  // optional fields from backend
+  patientName?: string;
+  patientAge?: number;
+  patientGender?: string;
+  emotion_label?: string;
+  emotion_confidence?: number;
 }
+
+const formatPhilippineTime = (iso?: string) => {
+  if (!iso) return "N/A";
+
+  // Ensure the string is treated as UTC if it has no timezone info
+  const value = iso.endsWith("Z") ? iso : iso + "Z";
+  const d = new Date(value);
+
+  return d.toLocaleString("en-PH", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
 
 const Transcript = () => {
   const { patientId } = useParams<{ patientId?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const navState = location.state as { patientName?: string } | null;
 
-  // Sidebar identity
-  const validPatientId = patientId && patientId !== "N/A" ? patientId : "1";
-  const displayName = validPatientId === "1" ? "Hinako" : `Patient ${validPatientId}`;
+  // initialize from navigation state
+  const [patientName, setPatientName] = useState<string>(
+    navState?.patientName ?? ""
+  );
 
   // Data state
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
-  const [selectedSession, setSelectedSession] = useState<SessionAnalysis | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [selectedSession, setSelectedSession] = useState<SessionAnalysis | null>(
+    null
+  );
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 🔹 Header state (matched to ChatPage)
-  const [searchQuery, setSearchQuery] = useState("");      // renamed from `search`
+  // Header state
+  const [searchQuery, setSearchQuery] = useState("");
   const [username, setUsername] = useState<string>("");
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserInfo, setShowUserInfo] = useState(false);
 
+  // Delete dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
+
+  /* ===== Fetch patient name for sidebar ===== */
+  useEffect(() => {
+    const fetchPatient = async () => {
+      if (!patientId) return;
+
+      const usernameFromStorage = localStorage.getItem("username");
+      if (!usernameFromStorage) return;
+
+      try {
+        const res = await fetch(
+          `http://localhost:5000/api/patients/${patientId}?ownerUsername=${encodeURIComponent(
+            usernameFromStorage
+          )}`
+        );
+        const data = await res.json();
+
+        if (!res.ok) {
+          console.error("❌ Failed to fetch patient in Transcript:", data);
+          return;
+        }
+
+        setPatientName((prev) => prev || data.name || "");
+      } catch (err) {
+        console.error("❌ Error fetching patient in Transcript:", err);
+      }
+    };
+
+    fetchPatient();
+  }, [patientId]);
+
+  /* ===== Username for header ===== */
   useEffect(() => {
     const u = localStorage.getItem("username");
     if (u) setUsername(u);
@@ -60,58 +142,50 @@ const Transcript = () => {
     setShowNotifications(true);
     setTimeout(() => setShowNotifications(false), 2000);
   };
+
   const handleUserIconClick = () => {
     setShowUserInfo(true);
     setTimeout(() => setShowUserInfo(false), 2000);
   };
 
-  /* ===== Load sessions ===== */
+  /* ===== Load sessions list (filtered per user + patient) ===== */
   useEffect(() => {
     const fetchSessions = async () => {
       setLoading(true);
       setError(null);
+
       try {
-        const response = await fetch("http://localhost:8000/get-sessions");
+        const usernameFromStorage = localStorage.getItem("username");
+        if (!usernameFromStorage || !patientId) {
+          setSessions([]);
+          setLoading(false);
+          return;
+        }
+
+        const params = new URLSearchParams({
+          ownerUsername: usernameFromStorage,
+          patientId: patientId,
+        });
+
+        const response = await fetch(
+          `http://localhost:8000/get-sessions?${params.toString()}`
+        );
+
         if (!response.ok) throw new Error("Failed to fetch sessions");
 
         const data = await response.json();
-        if (!data || data.length === 0) {
-          const demoRes = await fetch("http://localhost:8000/get-transcript-demo");
-          if (demoRes.ok) {
-            const demo = await demoRes.json();
-            setSessions([
-              {
-                _id: demo._id,
-                session_id: demo.session_id,
-                timestamp: demo.timestamp,
-                total_score: demo.total_score,
-                severity_band: demo.severity_band,
-                message_count:
-                  demo.message_count || demo.conversation_text.split("\n").length,
-              },
-            ]);
-          } else {
-            setSessions([]);
-          }
-        } else {
-          setSessions(data);
-        }
+        setSessions(Array.isArray(data) ? data : []);
       } catch (err: any) {
         setError(err.message);
       } finally {
         setLoading(false);
       }
     };
-    fetchSessions();
-  }, []);
 
-  /* ===== Open session from route param ===== */
-  useEffect(() => {
-    if (!patientId) return;
-    fetchSessionDetail(patientId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetchSessions();
   }, [patientId]);
 
+  /* ===== Load single session detail ===== */
   const fetchSessionDetail = async (sessionId: string) => {
     setLoading(true);
     setError(null);
@@ -138,21 +212,64 @@ const Transcript = () => {
     window.open(url, "_blank");
   };
 
-  // filter using the new state name
   const filteredSessions = sessions.filter(
     (s) =>
       s.session_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.severity_band.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  /* ===== Confirm delete (called from AlertDialog) ===== */
+  const handleConfirmDelete = async () => {
+    if (!sessionToDelete) return;
+
+    try {
+      const res = await fetch(
+        `http://localhost:8000/delete-session/${sessionToDelete}`,
+        { method: "DELETE" }
+      );
+
+      if (!res.ok) {
+        let msg = "Failed to delete session.";
+        try {
+          const data = await res.json();
+          if (data?.detail) msg = data.detail;
+        } catch {}
+        alert(msg);
+        return;
+      }
+
+      alert("✅ Session deleted successfully.");
+
+      // Remove from list
+      setSessions((prev) =>
+        prev.filter((s) => s.session_id !== sessionToDelete)
+      );
+
+      // Close detail view
+      setSelectedSession(null);
+    } catch (err) {
+      console.error("❌ Error deleting session:", err);
+      alert("An error occurred while deleting the session.");
+    } finally {
+      setDeleteDialogOpen(false);
+      setSessionToDelete(null);
+    }
+  };
+
   /* ===== UI ===== */
   return (
     <div className="flex min-h-screen w-full">
-      <DashboardSidebar selectedPatient={{ id: validPatientId, name: displayName }} />
+      <DashboardSidebar
+        selectedPatient={
+          patientId && patientName
+            ? { id: patientId, name: patientName }
+            : undefined
+        }
+      />
 
       <main className="flex-1 bg-background">
         <div className="p-4 md:p-8">
-          {/* 🔹 Top bar (colors & layout matched to ChatPage) */}
+          {/* Top bar */}
           <div className="flex items-center gap-3 mb-6">
             <div className="flex-1">
               <div className="relative">
@@ -166,7 +283,6 @@ const Transcript = () => {
                   className="pl-9 h-10 text-primary/50 rounded-full bg-sidebar/20"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  // keep enabled to match ChatPage feel
                 />
               </div>
             </div>
@@ -191,7 +307,7 @@ const Transcript = () => {
             </div>
           </div>
 
-          {/* 🔹 Popovers (same style as ChatPage) */}
+          {/* Popovers */}
           {showNotifications && (
             <div className="absolute top-14 left-0 right-0 border border-primary bg-transparent text-primary p-2 rounded-md shadow-md max-w-sm mx-auto">
               <p className="font-bold text-sm">You have 3 new notifications</p>
@@ -199,7 +315,7 @@ const Transcript = () => {
           )}
           {showUserInfo && (
             <div className="absolute top-14 left-0 right-0 border border-primary bg-transparent text-primary p-3 rounded-md shadow-md max-w-sm mx-auto">
-            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4">
                 <User className="h-8 w-8 text-primary" />
                 <span className="font-bold">{username}</span>
               </div>
@@ -213,7 +329,7 @@ const Transcript = () => {
               <>
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-2xl font-bold">Conversation Transcript</h2>
-                  <div className="flex gap-3">
+                  <div className="flex gap-3 items-center">
                     <Button
                       variant="outline"
                       className="flex items-center gap-2"
@@ -224,16 +340,30 @@ const Transcript = () => {
 
                     <Button
                       className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2"
-                      onClick={() => handleDownload(selectedSession.session_id, "pdf")}
+                      onClick={() =>
+                        handleDownload(selectedSession.session_id, "pdf")
+                      }
                     >
                       <Download className="h-4 w-4" /> PDF
                     </Button>
                     <Button
                       variant="outline"
                       className="flex items-center gap-2"
-                      onClick={() => handleDownload(selectedSession.session_id, "json")}
+                      onClick={() =>
+                        handleDownload(selectedSession.session_id, "json")
+                      }
                     >
                       <FileText className="h-4 w-4" /> JSON
+                    </Button>
+
+                    <Button
+                      className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2"
+                      onClick={() => {
+                        setSessionToDelete(selectedSession.session_id);
+                        setDeleteDialogOpen(true);
+                      }}
+                    >
+                      🗑️ Delete
                     </Button>
                   </div>
                 </div>
@@ -254,17 +384,23 @@ const Transcript = () => {
                 {!loading && !error && (
                   <div className="prose max-w-none text-foreground/80">
                     <div className="bg-white p-6 rounded-lg shadow-inner mb-6">
-                      {selectedSession.conversation_text.split("\n").map((line, idx) => (
-                        <p key={idx} className="text-sm mb-2">
-                          {line.startsWith("User:") ? (
-                            <span className="font-semibold text-blue-700">{line}</span>
-                          ) : line.startsWith("Bot:") ? (
-                            <span className="font-semibold text-gray-700">{line}</span>
-                          ) : (
-                            line
-                          )}
-                        </p>
-                      ))}
+                      {selectedSession.conversation_text
+                        .split("\n")
+                        .map((line, idx) => (
+                          <p key={idx} className="text-sm mb-2">
+                            {line.startsWith("User:") ? (
+                              <span className="font-semibold text-blue-700">
+                                {line}
+                              </span>
+                            ) : line.startsWith("Bot:") ? (
+                              <span className="font-semibold text-gray-700">
+                                {line}
+                              </span>
+                            ) : (
+                              line
+                            )}
+                          </p>
+                        ))}
                     </div>
 
                     <div className="p-4 bg-pink-100 border border-pink-300 rounded-lg text-center shadow-sm">
@@ -274,11 +410,55 @@ const Transcript = () => {
                       <div className="text-md text-pink-700 mt-1">
                         Severity Level: {selectedSession.severity_band}
                       </div>
-                      <div className="text-sm text-gray-500 mt-2">
+
+                      {/* patient info */}
+                      <div className="mt-3 text-sm text-pink-900">
+                        {selectedSession.patientName && (
+                          <div>
+                            <span className="font-semibold">Patient:</span>{" "}
+                            {selectedSession.patientName}
+                            {selectedSession.patientAge &&
+                              `, ${selectedSession.patientAge} yrs`}
+                            {selectedSession.patientGender &&
+                              ` • ${selectedSession.patientGender}`}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* emotion snapshot */}
+                      {(selectedSession.emotion_label ||
+                        selectedSession.emotion_confidence != null) && (
+                        <div className="mt-2 text-sm text-pink-900">
+                          <span className="font-semibold">
+                            Emotion Snapshot:
+                          </span>{" "}
+                          {selectedSession.emotion_label || "N/A"}
+                          {selectedSession.emotion_confidence != null &&
+                            ` (${selectedSession.emotion_confidence.toFixed(
+                              0
+                            )}% confidence)`}
+                        </div>
+                      )}
+
+                      <div className="text-sm text-gray-500 mt-3">
                         Session ID: {selectedSession.session_id}
                       </div>
-                      <div className="text-xs text-gray-400">
-                        Recorded at: {new Date(selectedSession.timestamp).toLocaleString()}
+                      <div className="text-xs text-gray-400 mt-1">
+                        {selectedSession.started_at &&
+                        selectedSession.ended_at ? (
+                          <>
+                            Session time:{" "}
+                            {formatPhilippineTime(
+                              selectedSession.started_at
+                            )}{" "}
+                            –{" "}
+                            {formatPhilippineTime(
+                              selectedSession.ended_at
+                            )}
+                          </>
+                        ) : (
+                          <>Recorded at: {formatPhilippineTime(selectedSession.timestamp)}</>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -328,17 +508,21 @@ const Transcript = () => {
                             Session {s.session_id.slice(0, 8)}...
                           </h3>
                           <p className="text-sm text-gray-600">
-                            Recorded: {new Date(s.timestamp).toLocaleString()}
+                            Recorded: {formatPhilippineTime(s.timestamp)}
                           </p>
                         </div>
                         <FileText className="text-blue-500" />
                       </div>
 
                       <div className="mt-4">
-                        <p className="text-sm">Messages: {s.message_count ?? 0}</p>
+                        <p className="text-sm">
+                          Messages: {s.message_count ?? 0}
+                        </p>
                         <p className="text-sm">
                           Score:{" "}
-                          <span className="font-semibold text-blue-700">{s.total_score}</span>{" "}
+                          <span className="font-semibold text-blue-700">
+                            {s.total_score}
+                          </span>{" "}
                           ({s.severity_band})
                         </p>
                       </div>
@@ -352,7 +536,9 @@ const Transcript = () => {
                         </Button>
                         <Button
                           variant="outline"
-                          onClick={() => handleDownload(s.session_id, "pdf")}
+                          onClick={() =>
+                            handleDownload(s.session_id, "pdf")
+                          }
                           title="Download PDF"
                         >
                           <Download className="h-4 w-4 text-blue-600" />
@@ -366,6 +552,35 @@ const Transcript = () => {
           </Card>
         </div>
       </main>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="bg-primary-foreground border border-red-600">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this session?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This transcript and its PHQ-9 summary will be permanently removed.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setSessionToDelete(null);
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={handleConfirmDelete}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

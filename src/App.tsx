@@ -12,7 +12,8 @@ import Dashboard from "./pages/Dashboard";
 import ChatPage from "./pages/ChatPage";
 import Transcript from "./pages/Transcript.tsx";
 import PHQ9 from "./pages/PHQ9";
-import EmotionalAnalysis from "./pages/EmotionalAnalysis";
+//import EmotionalAnalysis from "./pages/EmotionalAnalysis";
+//<Route path="/emotional-analysis/:patientId" element={<EmotionalAnalysis />} />
 import ReportSummary from "./pages/ReportSummary";
 import NotFound from "./pages/NotFound";
 
@@ -42,7 +43,6 @@ const App = () => (
           <Route path="/transcript/:patientId" element={<Transcript />} />
           // App.tsx
           <Route path="/phq9/:patientId" element={<PHQ9 />} />
-          <Route path="/emotional-analysis/:patientId" element={<EmotionalAnalysis />} />
           <Route path="/report-summary/:patientId" element={<ReportSummary />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
